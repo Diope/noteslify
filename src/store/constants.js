@@ -1,2 +1,5 @@
 export const SET_NOTES = 'SET_NOTES'
 export const ERROR = 'ERROR'
+export const ADD_NOTE = 'ADD_NOTE'
+export const RESET_FORM = 'RESET_FORM'
+export const SET_INPUT = 'SET_INPUT'
