@@ -7,7 +7,8 @@ import {v4 as uuid} from 'uuid';
 import {SET_NOTES, ERROR, ADD_NOTE, RESET_FORM, SET_INPUT} from './store/constants'
 import {initialState} from './store/state'
 
-import {createNote as CreateNote} from './graphql/mutations'
+import {createNote as CreateNote, deleteNote as DeleteNote, updateNote as UpdateNote} from './graphql/mutations'
+import {onCreateNote} from './graphql/subscriptions'
 
 import 'antd/dist/antd.css';
 import './App.css';
@@ -36,6 +37,16 @@ function App() {
 
   useEffect(() => {
     fetchNotes()
+    const subscription = API.graphql({
+      query: onCreateNote
+    }).subscribe({
+      next: noteData => {
+        const note = noteData.value.data.onCreateNote
+        if (CLIENT_ID === note.clientId) return
+        dispatch({type: ADD_NOTE, note})
+      }
+    })
+    return () => subscription.unsubscribe()
   }, [])
   
 
@@ -70,13 +81,54 @@ function App() {
     }
   }
 
+  async function deleteNote({id}) {
+    const idx = state.notes.findIndex(n => n.id === id)
+    const notes = [
+      ...state.notes.slice(0,idx),
+      ...state.notes.slice(idx + 1)
+    ]
+    dispatch({type: SET_NOTES, notes})
+    try {
+      await API.graphql({
+        query: DeleteNote,
+        variables: {input: {id}}
+      })
+      console.log('Note has been deleted!')
+    } catch (err) {
+      console.log({err})
+    }
+  }
+
+  async function updateNote(note) {
+    const idx = state.notes.findIndex(n => n.id === note.id)
+    const notes = [...state.notes]
+    notes[idx].completed = !note.completed
+    dispatch({type: SET_NOTES, notes})
+    try {
+      await API.graphql({
+        query: UpdateNote,
+        variables:  {input: { id: note.id, completed: notes[idx].completed }}
+      })
+      console.log('Note has been updated')
+    } catch (err) {
+      console.log('error: ', err)
+    }
+  }
+
+
   function onChange(e) {
     dispatch({type: SET_INPUT, name: e.target.name, value: e.target.value})
   }
 
   function renderItem(item) {
     return (
-      <List.Item style={styles.item}>
+      <List.Item style={styles.item}
+        actions={[
+          <p style={styles.p} onClick={() => deleteNote(item)}>Delete</p>,
+          <p style={styles.p} onClick={() => updateNote(item)}>{item.completed ? 'Completed' : 'Pending' }</p>
+        ]}
+
+      >
         <List.Item.Meta
           title={item.name}
           description={item.description}
